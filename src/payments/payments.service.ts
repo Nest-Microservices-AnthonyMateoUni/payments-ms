@@ -1,12 +1,16 @@
-import { Injectable } from '@nestjs/common';
-import { envs } from 'src/config';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { envs, NATS_SERVICE } from 'src/config';
 import Stripe from 'stripe';
+import { ClientProxy } from '@nestjs/microservices';
 import { PaymentSessionDto } from './dto/payment-session.dto';
 import { Request, Response } from 'express';
 
 @Injectable()
 export class PaymentsService {
   private readonly stripe = new Stripe(envs.stripeSecret);
+  private readonly logger = new Logger('PaymentsService');
+
+  constructor(@Inject(NATS_SERVICE) private readonly client: ClientProxy) {}
 
   async createPaymentSession(paymentSessionDto: PaymentSessionDto) {
     const { currency, items, orderId } = paymentSessionDto;
@@ -36,7 +40,11 @@ export class PaymentsService {
       success_url: envs.sripeSuccessUrl,
       cancel_url: envs.stripeCancelUrl,
     });
-    return session;
+    return {
+      cancelUrl: session.cancel_url,
+      successUrl: session.success_url,
+      url: session.url,
+    };
   }
 
   // async stripeWebhook(req: Request, res: Response) {
@@ -70,12 +78,20 @@ export class PaymentsService {
     switch (event.type) {
       case 'charge.succeeded':
         const chargerSucceeded = event.data.object;
+        const payload = {
+          stripePaymentId: chargerSucceeded.id,
+          orderId: chargerSucceeded.metadata.orderId,
+          receiptUrl: chargerSucceeded.receipt_url,
+        };
         // console.log(event);
-        console.log({
-          metadata: chargerSucceeded.metadata,
-          ordederId: chargerSucceeded.metadata.orderId,
-        });
 
+        // console.log({
+        //   metadata: chargerSucceeded.metadata,
+        //   ordederId: chargerSucceeded.metadata.orderId,
+        // });
+
+        // this.logger.log({ payload });
+        this.client.emit('payment.succeeded', payload);
         break;
       default:
         console.log(`Event ${event.type} not handled`);
