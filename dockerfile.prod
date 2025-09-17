@@ -1,0 +1,89 @@
+# # Dependencias
+# FROM node:21-alpine3.19 as deps
+
+# WORKDIR /usr/src/app
+
+# COPY package.json ./
+# COPY package-lock.json ./
+
+# RUN npm i
+
+
+# # Build - Construye la aplicacion
+# FROM node:21-alpine3.19 as build
+
+# WORKDIR /usr/src/app
+
+# #Copiar de deps, los modulos de node
+# COPY --from=deps /usr/src/app/node_modules ./node_modules
+
+# #copiar todo el codigo fuente de la aplicacion
+# COPY . . 
+
+# # RUN npm run test
+# RUN npm run build
+
+# RUN npm ci -f --only=production && npm cache clean --force
+
+# # Crear la imagen final de Docker
+# FROM node:21-alpine3.19 as prods
+
+# WORKDIR /usr/src/app
+
+# COPY --from=build /usr/src/app/node_modules ./node_modules
+
+
+# # Copiar la carpeta de produccionS
+# COPY --from=build /usr/src/app/dist ./dist
+
+# # 🔥 Copiar también package.json
+# COPY package.json ./
+
+# ENV NODE_ENV=production
+
+# USER node
+
+# EXPOSE 3000
+
+# CMD [ "node", "dist/main.js" ]
+# Dependencias
+FROM node:21-alpine3.19 as deps
+
+WORKDIR /usr/src/app
+
+COPY package.json package-lock.json ./
+
+RUN npm i
+
+# Build - Construye la aplicación
+FROM node:21-alpine3.19 as build
+
+WORKDIR /usr/src/app
+
+# Copiar node_modules desde deps
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+
+# Copiar todo el código fuente
+COPY . .
+
+RUN npm run build
+
+# Crear imagen final de producción
+FROM node:21-alpine3.19 as prods
+
+WORKDIR /usr/src/app
+
+# Copiar node_modules y dist
+COPY --from=build /usr/src/app/node_modules ./node_modules
+COPY --from=build /usr/src/app/dist ./dist
+
+# 🔥 Copiar también package.json
+COPY package.json ./
+
+ENV NODE_ENV=production
+
+USER node
+
+EXPOSE 3000
+
+CMD ["node", "dist/main.js"]
