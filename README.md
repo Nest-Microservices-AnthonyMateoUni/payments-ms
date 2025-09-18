@@ -33,6 +33,8 @@ $ npm install
 
 ## Compile and run the project
 
+## algo
+
 ```bash
 # development
 $ npm run start
